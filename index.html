@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Интерактивная анимация жестов</title>
+    <title>Интерактивная анимация жестов — Яся</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body, html { width: 100%; height: 100%; overflow: hidden; background: #05050a; font-family: system-ui, -apple-system, sans-serif; color: #fff; }
@@ -117,6 +117,11 @@
         let currentGesture = 'open';
         let timeStep = 0;
 
+        let textPointsLetsFuck = [];
+        let textPointsYasechka = [];
+        let poopPoints = [];
+        let heartPoints = [];
+
         function resize() {
             width = canvas.width = window.innerWidth;
             height = canvas.height = window.innerHeight;
@@ -168,10 +173,6 @@
             return points;
         }
 
-        let textPointsLetsFuck = [];
-        let textPointsYasechka = [];
-        let poopPoints = [];
-        let heartPoints = [];
         resize();
 
         class Particle {
@@ -245,7 +246,7 @@
                 p.draw();
             });
 
-            requestAnimationFrame(animate);
+            animationFrameId = requestAnimationFrame(animate);
         }
         animate();
 
@@ -311,7 +312,7 @@
             if (videoElement.readyState >= 2) {
                 await hands.send({ image: videoElement });
             }
-            animationFrameId = requestAnimationFrame(sendVideoFrame);
+            requestAnimationFrame(sendVideoFrame);
         }
 
         toggleBtn.addEventListener('click', async () => {
@@ -344,14 +345,11 @@
                 if (mediaStream) {
                     mediaStream.getTracks().forEach(track => track.stop());
                 }
-                if (animationFrameId) {
-                    cancelAnimationFrame(animationFrameId);
-                }
                 cameraActive = false;
                 toggleBtn.textContent = '📹 Включить камеру';
                 toggleBtn.classList.remove('active');
                 statusDot.classList.remove('active');
-                statusText.textContent = 'Камера отключена';
+                statusText.statusText = 'Камера отключена';
                 webcamContainer.style.display = 'none';
                 currentGesture = 'open';
             }
