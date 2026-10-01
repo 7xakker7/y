@@ -11,16 +11,15 @@
         body, html { width: 100%; height: 100%; overflow: hidden; background: #05050a; font-family: system-ui, -apple-system, sans-serif; color: #fff; }
         canvas { display: block; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
         
-        .ui-container { position: fixed; z-index: 10; top: 20px; left: 20px; display: flex; flex-direction: column; gap: 10px; }
-        .btn { background: rgba(46, 166, 255, 0.8); border: 1px solid rgba(255, 255, 255, 0.3); backdrop-filter: blur(12px); color: #fff; padding: 12px 20px; border-radius: 12px; cursor: pointer; font-size: 14px; font-weight: 600; transition: all 0.3s ease; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.4); -webkit-tap-highlight-color: transparent; }
-        .btn:hover { background: rgba(46, 166, 255, 1); }
-        .btn.active { background: rgba(239, 68, 68, 0.8); }
+        .ui-container { position: fixed; z-index: 10; top: 20px; left: 20px; display: flex; flex-direction: column; gap: 10px; max-width: calc(100% - 40px); }
+        .btn { background: rgba(46, 166, 255, 0.9); border: 1px solid rgba(255, 255, 255, 0.3); backdrop-filter: blur(12px); color: #fff; padding: 14px 22px; border-radius: 14px; cursor: pointer; font-size: 15px; font-weight: 600; transition: all 0.3s ease; display: inline-flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.4); -webkit-tap-highlight-color: transparent; }
+        .btn:active { transform: scale(0.97); }
+        .btn.active { background: rgba(239, 68, 68, 0.9); }
 
-        .status-badge { background: rgba(0, 0, 0, 0.7); border: 1px solid rgba(255, 255, 255, 0.15); padding: 8px 14px; border-radius: 8px; font-size: 12px; backdrop-filter: blur(8px); display: inline-flex; align-items: center; gap: 8px; }
-        .dot { width: 8px; height: 8px; border-radius: 50%; background: #ef4444; }
+        .status-badge { background: rgba(0, 0, 0, 0.8); border: 1px solid rgba(255, 255, 255, 0.15); padding: 10px 16px; border-radius: 10px; font-size: 13px; backdrop-filter: blur(8px); display: inline-flex; align-items: center; gap: 8px; word-break: break-all; }
+        .dot { width: 8px; height: 8px; border-radius: 50%; background: #ef4444; flex-shrink: 0; }
         .dot.active { background: #22c55e; box-shadow: 0 0 10px #22c55e; }
 
-        /* Нормальная, аккуратная нижняя панель подсказок */
         .info-panel {
             position: fixed;
             bottom: 20px;
@@ -80,7 +79,7 @@
         <button id="toggleCamera" class="btn">📹 Включить камеру</button>
         <div class="status-badge">
             <div id="statusDot" class="dot"></div>
-            <span id="statusText">Камера отключена</span>
+            <span id="statusText">Нажмите кнопку для старта</span>
         </div>
     </div>
 
@@ -93,7 +92,7 @@
     </div>
 
     <div class="webcam-box" id="webcamContainer">
-        <video id="webcam" autoplay playsinline loop muted></video>
+        <video id="webcam" autoplay playsinline muted></video>
         <canvas id="outputCanvas"></canvas>
     </div>
 
@@ -285,68 +284,76 @@
             });
         }
 
-        const hands = new Hands({
-            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
-        });
+        let hands = null;
+        try {
+            hands = new Hands({
+                locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+            });
+            hands.setOptions({
+                maxNumHands: 2,
+                modelComplexity: 0,
+                minDetectionConfidence: 0.5,
+                minTrackingConfidence: 0.5
+            });
 
-        hands.setOptions({
-            maxNumHands: 2,
-            modelComplexity: 0,
-            minDetectionConfidence: 0.5,
-            minTrackingConfidence: 0.5
-        });
+            hands.onResults(results => {
+                if (!videoElement.videoWidth) return;
+                outputCanvas.width = videoElement.videoWidth;
+                outputCanvas.height = videoElement.videoHeight;
+                outputCtx.save();
+                outputCtx.clearRect(0, 0, outputCanvas.width, outputCanvas.height);
+                outputCtx.drawImage(videoElement, 0, 0, outputCanvas.width, outputCanvas.height);
 
-        hands.onResults(results => {
-            if (!videoElement.videoWidth) return;
-            outputCanvas.width = videoElement.videoWidth;
-            outputCanvas.height = videoElement.videoHeight;
-            outputCtx.save();
-            outputCtx.clearRect(0, 0, outputCanvas.width, outputCanvas.height);
-            outputCtx.drawImage(videoElement, 0, 0, outputCanvas.width, outputCanvas.height);
+                if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                    for (const landmarks of results.multiHandLandmarks) {
+                        drawConnectors(outputCtx, landmarks, HAND_CONNECTIONS, {color: '#ec4899', lineWidth: 2});
+                        drawLandmarks(outputCtx, landmarks, {color: '#38bdf8', lineWidth: 1, radius: 2});
+                    }
 
-            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-                for (const landmarks of results.multiHandLandmarks) {
-                    drawConnectors(outputCtx, landmarks, HAND_CONNECTIONS, {color: '#ec4899', lineWidth: 2});
-                    drawLandmarks(outputCtx, landmarks, {color: '#38bdf8', lineWidth: 1, radius: 2});
-                }
+                    const handsCount = results.multiHandLandmarks.length;
+                    const l = results.multiHandLandmarks[0];
 
-                const handsCount = results.multiHandLandmarks.length;
-                const l = results.multiHandLandmarks[0];
+                    const getDist = (p1, p2) => Math.hypot(p1.x - p2.x, p1.y - p2.y, (p1.z || 0) - (p2.z || 0));
+                    const wrist = l[0];
+                    
+                    const indexOpen = getDist(l[8], wrist) > getDist(l[6], wrist);
+                    const middleOpen = getDist(l[12], wrist) > getDist(l[10], wrist);
+                    const ringOpen = getDist(l[16], wrist) > getDist(l[14], wrist);
+                    const pinkyOpen = getDist(l[20], wrist) > getDist(l[18], wrist);
+                    
+                    const extendedCount = [indexOpen, middleOpen, ringOpen, pinkyOpen].filter(Boolean).length;
+                    const isThumbUp = (l[4].y < l[3].y) && (l[4].y < l[2].y) && (l[4].y < l[5].y) && (extendedCount === 0);
+                    const isFist = (extendedCount === 0) && !isThumbUp;
 
-                const getDist = (p1, p2) => Math.hypot(p1.x - p2.x, p1.y - p2.y, (p1.z || 0) - (p2.z || 0));
-                const wrist = l[0];
-                
-                const indexOpen = getDist(l[8], wrist) > getDist(l[6], wrist);
-                const middleOpen = getDist(l[12], wrist) > getDist(l[10], wrist);
-                const ringOpen = getDist(l[16], wrist) > getDist(l[14], wrist);
-                const pinkyOpen = getDist(l[20], wrist) > getDist(l[18], wrist);
-                
-                const extendedCount = [indexOpen, middleOpen, ringOpen, pinkyOpen].filter(Boolean).length;
-                const isThumbUp = (l[4].y < l[3].y) && (l[4].y < l[2].y) && (l[4].y < l[5].y) && (extendedCount === 0);
-                const isFist = (extendedCount === 0) && !isThumbUp;
-
-                if (handsCount >= 2) {
-                    currentGesture = 'yasechka';
-                } else if (isFist) {
-                    currentGesture = 'poop';
-                } else if (isThumbUp) {
-                    currentGesture = 'heart';
-                } else if (indexOpen && middleOpen && !ringOpen && !pinkyOpen) {
-                    currentGesture = 'letsfuck';
+                    if (handsCount >= 2) {
+                        currentGesture = 'yasechka';
+                    } else if (isFist) {
+                        currentGesture = 'poop';
+                    } else if (isThumbUp) {
+                        currentGesture = 'heart';
+                    } else if (indexOpen && middleOpen && !ringOpen && !pinkyOpen) {
+                        currentGesture = 'letsfuck';
+                    } else {
+                        currentGesture = 'open';
+                    }
                 } else {
                     currentGesture = 'open';
                 }
-            } else {
-                currentGesture = 'open';
-            }
-            updateUIActiveGesture(currentGesture);
-            outputCtx.restore();
-        });
+                updateUIActiveGesture(currentGesture);
+                outputCtx.restore();
+            });
+        } catch (err) {
+            console.error("MediaPipe initialization error:", err);
+        }
 
         async function sendVideoFrame() {
             if (!cameraActive) return;
-            if (videoElement.readyState >= 2) {
-                await hands.send({ image: videoElement });
+            if (videoElement.readyState >= 2 && hands) {
+                try {
+                    await hands.send({ image: videoElement });
+                } catch (err) {
+                    console.error("Hands send error:", err);
+                }
             }
             animationFrameId = requestAnimationFrame(sendVideoFrame);
         }
@@ -354,7 +361,13 @@
         toggleBtn.addEventListener('click', async () => {
             if (!cameraActive) {
                 try {
-                    // Безопасный запрос камеры без жестких ограничений разрешений (чтобы не было OverconstrainedError)
+                    statusText.textContent = 'Запрос доступа к камере...';
+                    
+                    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                        throw new Error('getUserMedia не поддерживается вашим браузером');
+                    }
+
+                    // Максимально совместимый запрос
                     mediaStream = await navigator.mediaDevices.getUserMedia({
                         video: { facingMode: 'user' },
                         audio: false
@@ -372,8 +385,11 @@
 
                     sendVideoFrame();
                 } catch (e) {
-                    console.error(e);
-                    alert('Ошибка камеры: убедитесь, что страница открыта по HTTPS и разрешен доступ.');
+                    console.error("Camera error:", e);
+                    statusDot.classList.remove('active');
+                    statusText.textContent = 'Ошибка: ' + (e.message || 'нет доступа');
+                    alert('Не удалось включить камеру.
+Причина: ' + (e.message || 'запрещен доступ или нет HTTPS'));
                 }
             } else {
                 if (mediaStream) {
