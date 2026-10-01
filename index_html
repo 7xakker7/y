@@ -2,149 +2,360 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Яся — Ultra Lite Portfolio</title>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Интерактивная анимация жестов</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body, html { width: 100%; height: 100%; overflow: hidden; background: #05050a; font-family: system-ui, -apple-system, sans-serif; color: #fff; }
+        canvas { display: block; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+        
+        .ui-container { position: fixed; z-index: 10; top: 20px; left: 20px; display: flex; flex-direction: column; gap: 10px; }
+        .btn { background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2); backdrop-filter: blur(12px); color: #fff; padding: 10px 16px; border-radius: 12px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.3s ease; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); -webkit-tap-highlight-color: transparent; }
+        .btn:hover { background: rgba(255, 255, 255, 0.2); transform: translateY(-2px); border-color: rgba(255, 255, 255, 0.4); }
+        .btn.active { background: rgba(236, 72, 153, 0.4); border-color: #ec4899; }
+
+        .status-badge { background: rgba(0, 0, 0, 0.6); border: 1px solid rgba(255, 255, 255, 0.1); padding: 8px 14px; border-radius: 8px; font-size: 12px; backdrop-filter: blur(8px); display: inline-flex; align-items: center; gap: 8px; }
+        .dot { width: 8px; height: 8px; border-radius: 50%; background: #ef4444; }
+        .dot.active { background: #22c55e; box-shadow: 0 0 10px #22c55e; }
+
+        .info-panel {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            display: flex;
+            gap: 12px;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(12px);
+            padding: 10px 16px;
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            flex-wrap: wrap;
+            justify-content: center;
+            max-width: 92vw;
+        }
+        .gesture-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-size: 12px;
+            font-weight: 500;
+            color: #fff;
+            gap: 2px;
+        }
+
+        .webcam-box { 
+            position: fixed; 
+            top: 20px; 
+            right: 20px; 
+            z-index: 10; 
+            width: 150px; 
+            height: 110px; 
+            border-radius: 16px; 
+            overflow: hidden; 
+            border: 2px solid rgba(255, 255, 255, 0.2); 
+            background: #000; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5); 
+            backdrop-filter: blur(10px); 
+            display: none; 
+        }
+        @media (max-width: 600px) {
+            .webcam-box { width: 110px; height: 85px; top: 15px; right: 15px; }
+            .info-panel { bottom: 12px; padding: 8px 12px; gap: 8px; }
+            .gesture-item { font-size: 10px; }
+        }
+        .webcam-box video { display: none; }
+        .webcam-box canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; transform: scaleX(-1); object-fit: cover; z-index: 2; }
+    </style>
+
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
-    <style>
-        body {
-            margin: 0;
-            padding: 0;
-            background-color: #0b1410;
-            color: #ffffff;
-            font-family: Arial, sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-            overflow: hidden;
-        }
-        .container {
-            position: relative;
-            width: 100%;
-            max-width: 480px;
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-        }
-        video, canvas {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            transform: scaleX(-1);
-        }
-        .ui-layer {
-            position: absolute;
-            z-index: 10;
-            top: 20px;
-            display: flex;
-            gap: 10px;
-        }
-        button {
-            background: #2ecc71;
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            font-size: 16px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: bold;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-        }
-        #status {
-            position: absolute;
-            bottom: 30px;
-            z-index: 10;
-            background: rgba(0, 0, 0, 0.7);
-            padding: 10px 20px;
-            border-radius: 20px;
-            font-size: 14px;
-            border: 1px solid rgba(255,255,255,0.2);
-        }
-    </style>
 </head>
 <body>
 
-<div class="container">
-    <div class="ui-layer">
-        <button id="startBtn">Запустить Ясю (Y-Lite)</button>
+    <div class="ui-container">
+        <button id="toggleCamera" class="btn">📹 Включить камеру</button>
+        <div class="status-badge">
+            <div id="statusDot" class="dot"></div>
+            <span id="statusText">Камера отключена</span>
+        </div>
     </div>
-    
-    <video id="webcam" autoplay playsinline muted></video>
-    <canvas id="output_canvas"></canvas>
-    
-    <div id="status">Бот «Яся» ожидает запуск камеры...</div>
-</div>
 
-<script>
-    const videoElement = document.getElementById('webcam');
-    const canvasElement = document.getElementById('output_canvas');
-    const canvasCtx = canvasElement.getContext('2d');
-    const startBtn = document.getElementById('startBtn');
-    const statusDiv = document.getElementById('status');
+    <div class="info-panel">
+        <div class="gesture-item"><span>🖐️ Ладонь</span><span>Хаос</span></div>
+        <div class="gesture-item"><span>✊ Кулак</span><span>💩</span></div>
+        <div class="gesture-item"><span>👍 Палец ↑</span><span>Сердце</span></div>
+        <div class="gesture-item"><span>✌ 2 пальца</span><span>Let's Fuck</span></div>
+        <div class="gesture-item"><span>🫶 2 руки</span><span>Ясечка</span></div>
+    </div>
 
-    let camera = null;
+    <div class="webcam-box" id="webcamContainer">
+        <video id="webcam" autoplay playsinline loop muted></video>
+        <canvas id="outputCanvas"></canvas>
+    </div>
 
-    function onResults(results) {
-        canvasElement.width = videoElement.videoWidth;
-        canvasElement.height = videoElement.videoHeight;
+    <canvas id="canvas"></canvas>
 
-        canvasCtx.save();
-        canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-        canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const toggleBtn = document.getElementById('toggleCamera');
+        const statusDot = document.getElementById('statusDot');
+        const statusText = document.getElementById('statusText');
+        const webcamContainer = document.getElementById('webcamContainer');
+        const videoElement = document.getElementById('webcam');
+        const outputCanvas = document.getElementById('outputCanvas');
+        const outputCtx = outputCanvas.getContext('2d');
 
-        if (results.multiHandLandmarks) {
-            for (const landmarks of results.multiHandLandmarks) {
-                drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: '#2ecc71', lineWidth: 2});
-                drawLandmarks(canvasCtx, landmarks, {color: '#f1c40f', lineWidth: 1, radius: 2});
-            }
-            statusDiv.innerText = `🟢 Яся [Y]: ${videoElement.videoWidth}x${videoElement.videoHeight} | Рук: ${results.multiHandLandmarks.length}`;
-        } else {
-            statusDiv.innerText = `🟢 Яся [Y]: Сканирование кадра...`;
+        let width, height;
+        let particles = [];
+        let cameraActive = false;
+        let mediaStream = null;
+        let animationFrameId = null;
+        let currentGesture = 'open';
+        let timeStep = 0;
+
+        function resize() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+            textPointsLetsFuck = getTextPoints("Let's Fuck", 75);
+            textPointsYasechka = getTextPoints("Ясечка", 85);
+            poopPoints = getTextPoints("💩", 110);
+            heartPoints = getHeartPoints();
         }
-        canvasCtx.restore();
-    }
+        window.addEventListener('resize', resize);
 
-    const hands = new Hands({
-        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
-    });
+        function getTextPoints(text, fontSize) {
+            const offScreenCanvas = document.createElement('canvas');
+            const offCtx = offScreenCanvas.getContext('2d');
+            offScreenCanvas.width = width;
+            offScreenCanvas.height = height;
 
-    hands.setOptions({
-        maxNumHands: 1,
-        modelComplexity: 0, // Ультра-легкая модель для максимальной скорости
-        minDetectionConfidence: 0.5,
-        minTrackingConfidence: 0.5
-    });
+            offCtx.fillStyle = '#fff';
+            offCtx.font = `bold ${fontSize}px sans-serif`;
+            offCtx.textAlign = 'center';
+            offCtx.textBaseline = 'middle';
+            offCtx.fillText(text, width / 2, height / 2);
 
-    hands.onResults(onResults);
+            const imgData = offCtx.getImageData(0, 0, width, height).data;
+            const points = [];
+            const step = 6;
 
-    startBtn.addEventListener('click', async () => {
-        try {
-            startBtn.style.display = 'none';
-            statusDiv.innerText = "Запуск камеры Яси...";
+            for (let y = 0; y < height; y += step) {
+                for (let x = 0; x < width; x += step) {
+                    const index = (y * width + x) * 4 + 3;
+                    if (imgData[index] > 128) {
+                        points.push({ x, y });
+                    }
+                }
+            }
+            return points;
+        }
 
-            camera = new Camera(videoElement, {
-                onFrame: async () => {
-                    await hands.send({ image: videoElement });
-                },
-                width: 160,
-                height: 120
+        function getHeartPoints() {
+            const points = [];
+            const scale = Math.min(width, height) / 32;
+            for (let t = 0; t < Math.PI * 2; t += 0.03) {
+                const x = 16 * Math.pow(Math.sin(t), 3);
+                const y = -(13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t));
+                points.push({
+                    x: width / 2 + x * scale,
+                    y: height / 2 + y * scale - 20
+                });
+            }
+            return points;
+        }
+
+        let textPointsLetsFuck = [];
+        let textPointsYasechka = [];
+        let poopPoints = [];
+        let heartPoints = [];
+        resize();
+
+        class Particle {
+            constructor() {
+                this.reset();
+            }
+            reset() {
+                this.x = Math.random() * width;
+                this.y = Math.random() * height;
+                this.vx = (Math.random() - 0.5) * 3;
+                this.vy = (Math.random() - 0.5) * 3;
+                this.targetX = this.x;
+                this.targetY = this.y;
+                this.size = Math.random() * 2.5 + 1;
+                this.color = `hsl(${Math.random() * 60 + 310}, 80%, 70%)`;
+            }
+
+            update(index) {
+                if (currentGesture === 'open') {
+                    this.targetX += this.vx;
+                    this.targetY += this.vy;
+                    if (this.targetX < 0 || this.targetX > width) this.vx *= -1;
+                    if (this.targetY < 0 || this.targetY > height) this.vy *= -1;
+                } else if (currentGesture === 'poop') {
+                    if (poopPoints.length > 0) {
+                        let pt = poopPoints[index % poopPoints.length];
+                        this.targetX = pt.x + (Math.random() - 0.5) * 3;
+                        this.targetY = pt.y + (Math.random() - 0.5) * 3;
+                    }
+                } else if (currentGesture === 'heart') {
+                    if (heartPoints.length > 0) {
+                        let pt = heartPoints[index % heartPoints.length];
+                        this.targetX = pt.x + (Math.random() - 0.5) * 4;
+                        this.targetY = pt.y + (Math.random() - 0.5) * 4;
+                    }
+                } else if (currentGesture === 'letsfuck') {
+                    if (textPointsLetsFuck.length > 0) {
+                        let pt = textPointsLetsFuck[index % textPointsLetsFuck.length];
+                        this.targetX = pt.x + (Math.random() - 0.5) * 3;
+                        this.targetY = pt.y + (Math.random() - 0.5) * 3;
+                    }
+                } else if (currentGesture === 'yasechka') {
+                    if (textPointsYasechka.length > 0) {
+                        let pt = textPointsYasechka[index % textPointsYasechka.length];
+                        this.targetX = pt.x + (Math.random() - 0.5) * 3;
+                        this.targetY = pt.y + (Math.random() - 0.5) * 3;
+                    }
+                }
+
+                this.x += (this.targetX - this.x) * 0.08;
+                this.y += (this.targetY - this.y) * 0.08;
+            }
+
+            draw() {
+                ctx.fillStyle = (currentGesture === 'heart' || currentGesture === 'letsfuck' || currentGesture === 'yasechka' || currentGesture === 'poop') ? '#ff3366' : this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        for (let i = 0; i < 900; i++) particles.push(new Particle());
+
+        function animate() {
+            timeStep++;
+            ctx.fillStyle = 'rgba(5, 5, 10, 0.2)';
+            ctx.fillRect(0, 0, width, height);
+
+            particles.forEach((p, idx) => {
+                p.update(idx);
+                p.draw();
             });
 
-            await camera.start();
-        } catch (error) {
-            console.error(error);
-            alert("Не удалось запустить камеру.");
-            startBtn.style.display = 'block';
-            statusDiv.innerText = "Ошибка доступа";
+            requestAnimationFrame(animate);
         }
-    });
-</script>
+        animate();
 
+        const hands = new Hands({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+        });
+
+        hands.setOptions({
+            maxNumHands: 2,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.65,
+            minTrackingConfidence: 0.65
+        });
+
+        hands.onResults(results => {
+            if (!videoElement.videoWidth) return;
+            outputCanvas.width = videoElement.videoWidth;
+            outputCanvas.height = videoElement.videoHeight;
+            outputCtx.save();
+            outputCtx.clearRect(0, 0, outputCanvas.width, outputCanvas.height);
+            outputCtx.drawImage(videoElement, 0, 0, outputCanvas.width, outputCanvas.height);
+
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                for (const landmarks of results.multiHandLandmarks) {
+                    drawConnectors(outputCtx, landmarks, HAND_CONNECTIONS, {color: '#ec4899', lineWidth: 3});
+                    drawLandmarks(outputCtx, landmarks, {color: '#38bdf8', lineWidth: 1, radius: 3});
+                }
+
+                const handsCount = results.multiHandLandmarks.length;
+                const l = results.multiHandLandmarks[0];
+
+                const getDist = (p1, p2) => Math.hypot(p1.x - p2.x, p1.y - p2.y, (p1.z || 0) - (p2.z || 0));
+                const wrist = l[0];
+                
+                const indexOpen = getDist(l[8], wrist) > getDist(l[6], wrist);
+                const middleOpen = getDist(l[12], wrist) > getDist(l[10], wrist);
+                const ringOpen = getDist(l[16], wrist) > getDist(l[14], wrist);
+                const pinkyOpen = getDist(l[20], wrist) > getDist(l[18], wrist);
+                
+                const extendedCount = [indexOpen, middleOpen, ringOpen, pinkyOpen].filter(Boolean).length;
+                const isThumbUp = (l[4].y < l[3].y) && (l[4].y < l[2].y) && (l[4].y < l[5].y) && (extendedCount === 0);
+                const isFist = (extendedCount === 0) && !isThumbUp;
+
+                if (handsCount >= 2) {
+                    currentGesture = 'yasechka';
+                } else if (isFist) {
+                    currentGesture = 'poop';
+                } else if (isThumbUp) {
+                    currentGesture = 'heart';
+                } else if (indexOpen && middleOpen && !ringOpen && !pinkyOpen) {
+                    currentGesture = 'letsfuck';
+                } else {
+                    currentGesture = 'open';
+                }
+            } else {
+                currentGesture = 'open';
+            }
+            outputCtx.restore();
+        });
+
+        async function sendVideoFrame() {
+            if (!cameraActive) return;
+            if (videoElement.readyState >= 2) {
+                await hands.send({ image: videoElement });
+            }
+            animationFrameId = requestAnimationFrame(sendVideoFrame);
+        }
+
+        toggleBtn.addEventListener('click', async () => {
+            if (!cameraActive) {
+                try {
+                    mediaStream = await navigator.mediaDevices.getUserMedia({
+                        video: {
+                            facingMode: 'user',
+                            width: { ideal: 640 },
+                            height: { ideal: 480 }
+                        },
+                        audio: false
+                    });
+
+                    videoElement.srcObject = mediaStream;
+                    await videoElement.play();
+
+                    cameraActive = true;
+                    toggleBtn.textContent = '⏹ Отключить камеру';
+                    toggleBtn.classList.add('active');
+                    statusDot.classList.add('active');
+                    statusText.textContent = 'Камера активна';
+                    webcamContainer.style.display = 'block';
+
+                    sendVideoFrame();
+                } catch (e) {
+                    alert('Не удалось получить доступ к камере. Убедитесь, что страница открыта через HTTPS или localhost, и вы разрешили использование камеры в настройках браузера.');
+                }
+            } else {
+                if (mediaStream) {
+                    mediaStream.getTracks().forEach(track => track.stop());
+                }
+                if (animationFrameId) {
+                    cancelAnimationFrame(animationFrameId);
+                }
+                cameraActive = false;
+                toggleBtn.textContent = '📹 Включить камеру';
+                toggleBtn.classList.remove('active');
+                statusDot.classList.remove('active');
+                statusText.textContent = 'Камера отключена';
+                webcamContainer.style.display = 'none';
+                currentGesture = 'open';
+            }
+        });
+    </script>
 </body>
 </html>
